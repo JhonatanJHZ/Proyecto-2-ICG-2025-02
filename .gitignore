@@ -1,0 +1,35 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.ipch
+*.aps
+
+# Build folders
+x64/
+Debug/
+Release/
+build/
+bin/
+obj/
+
+# Compiler outputs
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.lib
+*.exp
+*.log
+*.tlog
+*.idb
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# OS generated
+.DS_Store
+Thumbs.db

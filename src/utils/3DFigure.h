@@ -1,0 +1,53 @@
+#pragma once
+#include <iostream>
+#include <vector>
+#include "../glm/vec3.hpp"
+#include <string>
+#include <map>
+#include <sstream>
+#include <fstream>
+
+using namespace std;
+using namespace glm;
+
+struct Material{
+    string name;
+    float ns;
+    vec3 ka;
+    vec3 kd = {0.7f, 0.7f, 0.7f};
+    vec3 ks;
+    float ni, d;
+    float illum;
+    string textureMap;
+};
+
+struct FaceElement{
+    int vertexIndices[3];
+    int textureIndices[3];
+    int normalIndices[3];
+};
+
+struct SubMesh{
+    string groupName;
+    Material material;
+    vector<FaceElement> faces;
+
+    int startVertex = 0;
+    int vertexCount = 0;
+};
+
+class C3DFigure {
+    vector<vec3> vertices;
+    vector<vec3> normals;
+    vector<vec3> textures;
+    vector<SubMesh> subMeshes;
+
+public:
+    C3DFigure();
+    ~C3DFigure();
+
+    bool loadObject(string path);
+    bool loadMtl(string path, map<string, Material>& materialMap);
+    void normalization();
+    vector<float> flatten();
+};
