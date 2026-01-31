@@ -3,6 +3,8 @@
 #include <map>
 #include <sstream>
 #include <algorithm>
+#include "../glm/geometric.hpp" 
+#include "../glm/glm.hpp"
 
 using namespace std;
 
@@ -169,6 +171,39 @@ bool C3DFigure::loadObject(string path) {
             }
         }
     }
+
+    if(normals.empty()){
+        normals.assign(vertices.size(), vec3(0.0f));
+        for (auto& subMesh : subMeshes) {
+            for (auto& face : subMesh.faces) {
+                int i0 = face.vertexIndices[0] - 1;
+                int i1 = face.vertexIndices[1] - 1;
+                int i2 = face.vertexIndices[2] - 1;
+
+                vec3 v0 = vertices[i0];
+                vec3 v1 = vertices[i1];
+                vec3 v2 = vertices[i2];
+
+                vec3 edge1 = v1 - v0;
+                vec3 edge2 = v2 - v0;
+                vec3 faceNormal = cross(edge1, edge2);
+
+                normals[i0] += faceNormal;
+                normals[i1] += faceNormal;
+                normals[i2] += faceNormal;
+                
+                face.normalIndices[0] = face.vertexIndices[0];
+                face.normalIndices[1] = face.vertexIndices[1];
+                face.normalIndices[2] = face.vertexIndices[2];
+            }
+        }
+
+        for (int i = 0; i < normals.size(); i++) {
+            if (length(normals[i]) > 0.0f) {
+                normals[i] = normalize(normals[i]);
+            }
+        }
+    }
     entrada.close();
     return true;
 }
@@ -181,9 +216,9 @@ void C3DFigure::normalization() {
     float minZ = vertices[0].z, maxZ = vertices[0].z;
 
     for (const auto& v : vertices) {
-        minX = min(minX, v.x); maxX = max(maxX, v.x);
-        minY = min(minY, v.y); maxY = max(maxY, v.y);
-        minZ = min(minZ, v.z); maxZ = max(maxZ, v.z);
+        minX = std::min(minX, v.x); maxX = std::max(maxX, v.x);
+        minY = std::min(minY, v.y); maxY = std::max(maxY, v.y);
+        minZ = std::min(minZ, v.z); maxZ = std::max(maxZ, v.z);
     }
 
     vec3 center = vec3((minX + maxX) / 2.0f, (minY + maxY) / 2.0f, (minZ + maxZ) / 2.0f);
