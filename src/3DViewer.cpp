@@ -310,6 +310,15 @@ void C3DViewer::drawInterface()
     if (ImGui::Button("Reiniciar Escala")) {
         m_userScale = vec3(1.0f, 1.0f, 1.0f);
     }
+
+    if(ImGui::Button("Centrar objeto")){
+        m_modelPos = glm::vec3(0.0f, 0.0f, 0.0f); 
+        m_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        m_camPos   = glm::vec3(0.0f, 0.0f, 3.0f);
+        m_yaw      = -90.0f; 
+        m_pitch    = 0.0f;
+        updateCameraVectors();
+    }
     
     ImGui::End();
 
