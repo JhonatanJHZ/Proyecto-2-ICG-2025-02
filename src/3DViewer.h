@@ -31,6 +31,9 @@ public:
 
 private:
 
+    C3DFigure* m_currentModel = nullptr;
+    glm::vec3 indexToColor(int index);
+    int colorToIndex(unsigned char r, unsigned char g, unsigned char b);
     int m_vertexCount;
     virtual void onKey(int key, int scancode, int action, int mods);
 
@@ -60,6 +63,7 @@ private:
 
     void setupBoundingBox(BoundingBox box);
 
+    void performPicking(int x, int y); 
     void updateCameraVectors();
 
 protected:
@@ -71,7 +75,7 @@ protected:
     GLuint m_shaderProgram = 0;
     double lastTime = 0.0;
     GLuint m_bboxVAO = 0, m_bboxVBO = 0;
-    float bbColor[3] = {1, 1, 0.0f};
+    float bbColor[3] = {1, 1, 1};
     bool m_showBBox = true;
     bool mouseButtonsDown[3] = { false, false, false };
     
@@ -95,6 +99,7 @@ protected:
     float m_lastFrame = 0.0f;
 
     float panelWidth = 200.0f;
+    char saveFileName[256] = "modelo_exportado";
 
     bool isDragging = false;
     bool isRotating = false;
@@ -120,8 +125,23 @@ protected:
         #version 330 core
         in vec3 vColor;
         out vec4 FragColor;
+
+        uniform vec3 u_pickingColor; 
+        uniform bool u_isPicking;    
+        uniform int u_selectedIndex; // Nuevo: ID que el usuario seleccionó
+        uniform int u_currentMeshID; // Nuevo: ID de la sub-malla actual
+
         void main() {
-            FragColor = vec4(vColor, 1.0);
+            if (u_isPicking) {
+                FragColor = vec4(u_pickingColor, 1.0);
+            } else {
+                // Si esta sub-malla es la seleccionada, la pintamos de un color resaltado (ej. Amarillo)
+                if (u_selectedIndex != -1 && u_currentMeshID == u_selectedIndex) {
+                    FragColor = vec4(1.0, 1.0, 0.0, 1.0); // Resaltado amarillo
+                } else {
+                    FragColor = vec4(vColor, 1.0); // Color original (Kd del material)
+                }
+            }
         }
     )glsl";
 };

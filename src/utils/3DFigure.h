@@ -1,7 +1,10 @@
 #pragma once
 #include <iostream>
 #include <vector>
+#define GLM_ENABLE_EXPERIMENTAL
 #include "../glm/vec3.hpp"
+#include "../glm/gtc/quaternion.hpp"
+#include "../glm/gtx/quaternion.hpp"
 #include <string>
 #include <map>
 #include <sstream>
@@ -58,4 +61,6 @@ public:
     void normalization();
     BoundingBox getBoundingBox();
     vector<float> flatten();
+    const vector<SubMesh>& getSubMeshes();
+    void saveObject(string path, glm::vec3 pos, glm::quat rot, glm::vec3 scale);
 };

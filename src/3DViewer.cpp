@@ -146,8 +146,14 @@ void C3DViewer::onMouseButton(int button, int action, int mods)
         if (action == GLFW_PRESS)
         {
             mouseButtonsDown[button] = true;
-            if (button == 0 || button == 1 || button == 2) {
-                glfwGetCursorPos(m_window, &lastMouseX, &lastMouseY);
+            glfwGetCursorPos(m_window, &lastMouseX, &lastMouseY);
+
+            if (button == GLFW_MOUSE_BUTTON_LEFT) 
+            {
+                if (lastMouseX >= panelWidth) 
+                {
+                    performPicking((int)lastMouseX, (int)lastMouseY);
+                }
             }
         }
         else if (action == GLFW_RELEASE)
@@ -155,6 +161,72 @@ void C3DViewer::onMouseButton(int button, int action, int mods)
             mouseButtonsDown[button] = false;
         }
     }
+}
+
+void C3DViewer::performPicking(int x, int y) 
+{
+    // Ajustar viewport para que coincida con el área de renderizado (excluyendo el panel)
+    glViewport((int)panelWidth, 0, width - (int)panelWidth, height);
+    
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glUseProgram(m_shaderProgram);
+    
+    float aspect = (float)(width - panelWidth) / (float)height;
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+    glm::mat4 view = glm::lookAt(m_camPos, m_camPos + m_camFront, m_camUp);
+    
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), m_modelPos);
+    model = model * glm::mat4_cast(m_rotation);
+    model = glm::scale(model, m_userScale * scale_factor);
+    
+    glm::mat4 mvp = projection * view * model;
+
+    GLuint mvpLoc = glGetUniformLocation(m_shaderProgram, "u_mvp");
+    glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+
+    GLint isPickingLoc = glGetUniformLocation(m_shaderProgram, "u_isPicking");
+    GLint pickColorLoc = glGetUniformLocation(m_shaderProgram, "u_pickingColor");
+    
+    glUniform1i(isPickingLoc, 1);
+
+    if (m_currentModel) {
+        glBindVertexArray(m_vao);
+        
+        const std::vector<SubMesh>& subMeshes = m_currentModel->getSubMeshes();
+
+        for (int i = 0; i < (int)subMeshes.size(); ++i) {
+            glm::vec3 pickColor = indexToColor(i); 
+            glUniform3fv(pickColorLoc, 1, glm::value_ptr(pickColor));
+            
+            glDrawArrays(GL_TRIANGLES, subMeshes[i].startVertex, subMeshes[i].vertexCount);
+        }
+        glBindVertexArray(0);
+    }
+
+    unsigned char pixel[4];
+    glReadPixels(x, height - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+
+    int pickedID = colorToIndex(pixel[0], pixel[1], pixel[2]);
+
+    if (pickedID != -1 && pickedID < (int)m_currentModel->getSubMeshes().size()) {
+        selectedSubMeshIndex = pickedID;
+        std::cout << "SubMesh seleccionado ID: " << selectedSubMeshIndex 
+                  << " Nombre: " << m_currentModel->getSubMeshes()[selectedSubMeshIndex].groupName << std::endl;
+        m_showBBox = true;
+    } else {
+        selectedSubMeshIndex = -1;
+        std::cout << "Clic al fondo (nada seleccionado)" << std::endl;
+        m_showBBox = false;
+    }
+
+    glUniform1i(isPickingLoc, 0);
+    
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
+    glUniform1i(glGetUniformLocation(m_shaderProgram, "u_isPicking"), 0); 
+    glUniform1i(glGetUniformLocation(m_shaderProgram, "u_selectedIndex"), selectedSubMeshIndex);
 }
 
 void C3DViewer::onCursorPos(double xpos, double ypos) 
@@ -213,62 +285,60 @@ void C3DViewer::render() {
     // 1. Preparación del frame
     update();
     
-    // ESENCIAL: Limpiar el fondo Y el buffer de profundidad (Z-buffer)
-    // Si no limpias GL_DEPTH_BIT, el 3D se verá "encimado" o plano.
+    // Limpieza de buffers
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f); 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 
     // --- AJUSTE DEL VIEWPORT ---
-    // Usamos la variable miembro panelWidth
-    // El dibujo comienza en x = panelWidth, ocupando el resto del ancho
     glViewport((int)panelWidth, 0, width - (int)panelWidth, height);
 
     // 2. Activar Shaders
     glUseProgram(m_shaderProgram);
 
     // 3. Configuración de Matrices (MVP)
-    // --- AJUSTE DEL ASPECT RATIO ---
     if (height == 0) height = 1; 
     float aspect = (float)(width - panelWidth) / (float)height;
-    mat4 projection = perspective(radians(45.0f), aspect, 0.1f, 100.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+    glm::mat4 view = glm::lookAt(m_camPos, m_camPos + m_camFront, m_camUp);
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), m_modelPos);
+    model = model * glm::mat4_cast(m_rotation); 
+    model = glm::scale(model, m_userScale * scale_factor);
 
-    // VISTA: Cámara en el origen mirando hacia el infinito negativo (-Z)
-    mat4 view = lookAt(m_camPos, m_camPos + m_camFront, m_camUp);
+    glm::mat4 mvp = projection * view * model;
 
-    // MODELO: Trasladar el cochino (ya normalizado y centrado en 0) a Z = -3
-    mat4 model = translate(mat4(1.0f), m_modelPos);
-    
-    // Rotacion Quat
-    model = model * mat4_cast(m_rotation); 
-    
-    // Escala
-    model = scale(model, m_userScale * scale_factor);
-
-    // Combinación de matrices
-    mat4 mvp = projection * view * model;
-
-    // 4. Envío de la matriz al Shader
+    // 4. Envío de Uniforms Globales
     GLuint mvpLoc = glGetUniformLocation(m_shaderProgram, "u_mvp");
     if (mvpLoc != -1) {
-        glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, value_ptr(mvp));
+        glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mvp));
     }
 
-    // 5. Dibujo del Objeto
-    glBindVertexArray(m_vao);
-    
-    /* TRUCO PARA VER EL 3D: 
-       Si el objeto se ve de un solo color sólido, activa esta línea 
-       para ver la malla de triángulos (Wireframe).
-    */
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); 
-    
-    glDrawArrays(GL_TRIANGLES, 0, m_vertexCount);
-    
+    // --- NUEVO: Enviar índice seleccionado al Shader ---
+    glUniform1i(glGetUniformLocation(m_shaderProgram, "u_selectedIndex"), selectedSubMeshIndex);
+
+    if (m_currentModel) {
+        glBindVertexArray(m_vao);
+        const auto& meshes = m_currentModel->getSubMeshes();
+        GLuint meshIdLoc = glGetUniformLocation(m_shaderProgram, "u_currentMeshID");
+
+        for (int i = 0; i < (int)meshes.size(); ++i) {
+            glUniform1i(meshIdLoc, i);
+            // IMPORTANTE: Asegúrate de que vertexCount sea > 0
+            if (meshes[i].vertexCount > 0) {
+                glDrawArrays(GL_TRIANGLES, meshes[i].startVertex, meshes[i].vertexCount);
+            }
+        }
+    }
+
+    // 6. Dibujo del Bounding Box (si aplica)
     if (m_showBBox && m_bboxVAO != 0) {
+        // Resetear el ID de la malla para que el BB no se pinte como seleccionado
+        glUniform1i(glGetUniformLocation(m_shaderProgram, "u_currentMeshID"), -1);
+
         glBindVertexArray(m_bboxVAO);
         
+        // El BB usa color plano, desactivamos el atributo de color del VAO principal
         glDisableVertexAttribArray(1); 
-    glVertexAttrib3fv(1, bbColor); 
+        glVertexAttrib3fv(1, bbColor); 
 
         glLineWidth(2.0f); 
         glDrawArrays(GL_LINES, 0, 24); 
@@ -276,8 +346,8 @@ void C3DViewer::render() {
 
         glEnableVertexAttribArray(1);
     }
-    glViewport(0, 0, width, height);
 
+    glViewport(0, 0, width, height);
     drawInterface();
 }
 
@@ -330,6 +400,13 @@ void C3DViewer::drawInterface()
 
     ImGui::Text("Bounding Box:");
     ImGui::ColorEdit3("Color BB", bbColor);
+
+    ImGui::Text("Guardar Modelo OBJ/MTL");
+    ImGui::InputText("Nombre Archivo", saveFileName, 256);
+    if (ImGui::Button("Guardar OBJ")) {
+        // Pass user scale combined with internal scale factor
+        m_currentModel->saveObject(string(saveFileName), m_modelPos, m_rotation, m_userScale * scale_factor);
+    }
     
     ImGui::End();
 
@@ -403,20 +480,21 @@ bool C3DViewer::checkCompileErrors(GLuint shader, const char* type)
 
 void C3DViewer::setupModel(C3DFigure* obj)
 {
+    m_currentModel = obj;
     vector<float> vertices = obj->flatten();
+    
     m_vertexCount = static_cast<int>(vertices.size() / 6);
 
-    glGenVertexArrays(1, &m_vao);
-    glGenBuffers(1, &m_vbo);
+    if (m_vao == 0) glGenVertexArrays(1, &m_vao);
+    if (m_vbo == 0) glGenBuffers(1, &m_vbo);
 
     glBindVertexArray(m_vao);
-
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
@@ -472,6 +550,16 @@ void C3DViewer::cursorPosCallbackStatic(GLFWwindow* window, double xpos, double 
     C3DViewer* self = (C3DViewer*)glfwGetWindowUserPointer(window);
     if (self) 
         self->onCursorPos(xpos, ypos);
+}
+
+glm::vec3 C3DViewer::indexToColor(int index) {
+    float r = (index + 1) / 255.0f; 
+    return glm::vec3(r, 0.0f, 0.0f);
+}
+
+int C3DViewer::colorToIndex(unsigned char r, unsigned char g, unsigned char b) {
+    if (r == 255 && g == 255 && b == 255) return -1;
+    return (int)r - 1;
 }
 
 void C3DViewer::updateCameraVectors() 
