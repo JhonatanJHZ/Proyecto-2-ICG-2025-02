@@ -100,6 +100,8 @@ protected:
 
     float panelWidth = 200.0f;
     char saveFileName[256] = "modelo_exportado";
+    char loadFileName[256] = "cube.obj";
+    bool m_ownsModel = false;
 
     bool isDragging = false;
     bool isRotating = false;

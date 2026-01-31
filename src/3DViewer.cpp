@@ -1,6 +1,7 @@
 #include "3DViewer.h"
 #include <iostream>
 #include "utils/3DFigure.h"
+#include "tinyfiledialogs.h"
 
 C3DViewer::C3DViewer()
 {
@@ -402,10 +403,56 @@ void C3DViewer::drawInterface()
     ImGui::ColorEdit3("Color BB", bbColor);
 
     ImGui::Text("Guardar Modelo OBJ/MTL");
-    ImGui::InputText("Nombre Archivo", saveFileName, 256);
     if (ImGui::Button("Guardar OBJ")) {
-        // Pass user scale combined with internal scale factor
-        m_currentModel->saveObject(string(saveFileName), m_modelPos, m_rotation, m_userScale * scale_factor);
+        const char* filterPatterns[] = { "*.obj" };
+        const char* savePath = tinyfd_saveFileDialog(
+            "Guardar Modelo", 
+            "modelo_exportado.obj", 
+            1, 
+            filterPatterns, 
+            "Archivos Wavefront OBJ"
+        );
+
+        if (savePath) {
+            m_currentModel->saveObject(string(savePath), m_modelPos, m_rotation, m_userScale * scale_factor);
+        }
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Cargar Modelo OBJ");
+    if (ImGui::Button("Cargar OBJ")) {
+        const char* filterPatterns[] = { "*.obj" };
+        const char* openPath = tinyfd_openFileDialog(
+            "Cargar Modelo", 
+            "", 
+            1, 
+            filterPatterns, 
+            "Archivos Wavefront OBJ", 
+            0
+        );
+
+        if (openPath) {
+            C3DFigure* newModel = new C3DFigure();
+            if (newModel->loadObject(string(openPath))) {
+                // Limpieza del anterior si somos dueños
+                if (m_ownsModel && m_currentModel) {
+                    delete m_currentModel;
+                }
+                // Setup nuevo modelo
+                setupModel(newModel);
+                m_ownsModel = true;
+                
+                // Resetear transformaciones para el nuevo objeto
+                m_modelPos = glm::vec3(0.0f);
+                m_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                m_userScale = glm::vec3(1.0f); 
+                m_currentModel->normalization(); // Asegurarse que esté normalizado/centrado
+                setupModel(m_currentModel); // Re-setup para actualizar buffers tras normalización
+            } else {
+                std::cerr << "Error cargando: " << openPath << std::endl;
+                delete newModel;
+            }
+        }
     }
     
     ImGui::End();
@@ -595,8 +642,8 @@ void C3DViewer::setupBoundingBox(BoundingBox box) {
         minX, maxY, minZ,  minX, maxY, maxZ
     };
 
-    glGenVertexArrays(1, &m_bboxVAO);
-    glGenBuffers(1, &m_bboxVBO);
+    if (m_bboxVAO == 0) glGenVertexArrays(1, &m_bboxVAO);
+    if (m_bboxVBO == 0) glGenBuffers(1, &m_bboxVBO);
     glBindVertexArray(m_bboxVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_bboxVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(bboxVertices), bboxVertices, GL_STATIC_DRAW);
