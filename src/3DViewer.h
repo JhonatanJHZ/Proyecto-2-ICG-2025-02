@@ -58,6 +58,8 @@ private:
 
     static void cursorPosCallbackStatic(GLFWwindow* window, double xpos, double ypos);
 
+    void setupBoundingBox(BoundingBox box);
+
     void updateCameraVectors();
 
 protected:
@@ -68,6 +70,9 @@ protected:
     GLuint m_vbo = 0;
     GLuint m_shaderProgram = 0;
     double lastTime = 0.0;
+    GLuint m_bboxVAO = 0, m_bboxVBO = 0;
+    float bbColor[3] = {1, 1, 0.0f};
+    bool m_showBBox = true;
     bool mouseButtonsDown[3] = { false, false, false };
     
     // Model State

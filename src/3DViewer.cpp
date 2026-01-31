@@ -161,7 +161,7 @@ void C3DViewer::onCursorPos(double xpos, double ypos)
 {
     if (mouseButtonsDown[0] || mouseButtonsDown[1] || mouseButtonsDown[2]) 
     {
-        // std::cout << "[DEBUG] Mouse Drag at " << xpos << ", " << ypos << "\n";
+        cout << "Mouse Drag at " << xpos << ", " << ypos << "\n";
     }
 
     if (mouseButtonsDown[0]) 
@@ -264,12 +264,20 @@ void C3DViewer::render() {
     
     glDrawArrays(GL_TRIANGLES, 0, m_vertexCount);
     
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // Regresar a sólido
-    
-    // Restaurar viewport para ImGui (pantalla completa)
+    if (m_showBBox && m_bboxVAO != 0) {
+        glBindVertexArray(m_bboxVAO);
+        
+        glDisableVertexAttribArray(1); 
+    glVertexAttrib3fv(1, bbColor); 
+
+        glLineWidth(2.0f); 
+        glDrawArrays(GL_LINES, 0, 24); 
+        glLineWidth(1.0f);
+
+        glEnableVertexAttribArray(1);
+    }
     glViewport(0, 0, width, height);
 
-    // 6. Interfaz (ImGui u otros)
     drawInterface();
 }
 
@@ -319,6 +327,9 @@ void C3DViewer::drawInterface()
         m_pitch    = 0.0f;
         updateCameraVectors();
     }
+
+    ImGui::Text("Bounding Box:");
+    ImGui::ColorEdit3("Color BB", bbColor);
     
     ImGui::End();
 
@@ -410,6 +421,8 @@ void C3DViewer::setupModel(C3DFigure* obj)
     glEnableVertexAttribArray(1);
 
     glBindVertexArray(0);
+
+    setupBoundingBox(obj->getBoundingBox());
 }
 
 void C3DViewer::setupTriangle()
@@ -471,4 +484,34 @@ void C3DViewer::updateCameraVectors()
     m_camFront = glm::normalize(front);
     m_camRight = glm::normalize(glm::cross(m_camFront, glm::vec3(0.0f, 1.0f, 0.0f)));
     m_camUp    = glm::normalize(glm::cross(m_camRight, m_camFront));
+}
+
+void C3DViewer::setupBoundingBox(BoundingBox box) {
+    float minX = box.min.x, minY = box.min.y, minZ = box.min.z;
+    float maxX = box.max.x, maxY = box.max.y, maxZ = box.max.z;
+
+    float bboxVertices[] = {
+        minX, minY, minZ,  maxX, minY, minZ,
+        maxX, minY, minZ,  maxX, maxY, minZ,
+        maxX, maxY, minZ,  minX, maxY, minZ,
+        minX, maxY, minZ,  minX, minY, minZ,
+
+        minX, minY, maxZ,  maxX, minY, maxZ,
+        maxX, minY, maxZ,  maxX, maxY, maxZ,
+        maxX, maxY, maxZ,  minX, maxY, maxZ,
+        minX, maxY, maxZ,  minX, minY, maxZ,
+
+        minX, minY, minZ,  minX, minY, maxZ,
+        maxX, minY, minZ,  maxX, minY, maxZ,
+        maxX, maxY, minZ,  maxX, maxY, maxZ,
+        minX, maxY, minZ,  minX, maxY, maxZ
+    };
+
+    glGenVertexArrays(1, &m_bboxVAO);
+    glGenBuffers(1, &m_bboxVBO);
+    glBindVertexArray(m_bboxVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_bboxVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(bboxVertices), bboxVertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
 }

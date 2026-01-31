@@ -232,6 +232,9 @@ void C3DFigure::normalization() {
     for (auto& v : vertices) {
         v = (v - center) * scaleFactor;
     }
+
+    boundingBox.min = (vec3(minX, minY, minZ) - center) * scaleFactor;
+    boundingBox.max = (vec3(maxX, maxY, maxZ) - center) * scaleFactor;
 }
 
 vector<float> C3DFigure::flatten(){
@@ -259,4 +262,8 @@ vector<float> C3DFigure::flatten(){
         currentVertexOffset += count;
     }
     return data;
+}
+
+BoundingBox C3DFigure::getBoundingBox(){
+    return boundingBox;
 }

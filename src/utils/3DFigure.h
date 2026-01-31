@@ -36,11 +36,18 @@ struct SubMesh{
     int vertexCount = 0;
 };
 
+struct BoundingBox {
+    glm::vec3 min;
+    glm::vec3 max;
+};
+
 class C3DFigure {
     vector<vec3> vertices;
     vector<vec3> normals;
     vector<vec3> textures;
     vector<SubMesh> subMeshes;
+
+    BoundingBox boundingBox;
 
 public:
     C3DFigure();
@@ -49,5 +56,6 @@ public:
     bool loadObject(string path);
     bool loadMtl(string path, map<string, Material>& materialMap);
     void normalization();
+    BoundingBox getBoundingBox();
     vector<float> flatten();
 };
