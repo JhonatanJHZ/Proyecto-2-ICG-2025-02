@@ -30,6 +30,11 @@ struct FaceElement{
     int normalIndices[3];
 };
 
+struct BoundingBox {
+    glm::vec3 min;
+    glm::vec3 max;
+};
+
 struct SubMesh{
     string groupName;
     Material material;
@@ -37,11 +42,9 @@ struct SubMesh{
 
     int startVertex = 0;
     int vertexCount = 0;
-};
-
-struct BoundingBox {
-    glm::vec3 min;
-    glm::vec3 max;
+    
+    vec3 offset = vec3(0.0f); 
+    BoundingBox bbox;
 };
 
 class C3DFigure {
@@ -62,5 +65,7 @@ public:
     BoundingBox getBoundingBox();
     vector<float> flatten();
     const vector<SubMesh>& getSubMeshes();
+    vector<SubMesh>& getSubMeshesModifiable();
+    void deleteSubMesh(int index);
     void saveObject(string path, glm::vec3 pos, glm::quat rot, glm::vec3 scale);
 };

@@ -75,17 +75,15 @@ protected:
     GLuint m_shaderProgram = 0;
     double lastTime = 0.0;
     GLuint m_bboxVAO = 0, m_bboxVBO = 0;
-    float bbColor[3] = {1, 1, 1};
-    bool m_showBBox = true;
+    float bbColor[3] = {0.18f, 0.80f, 0.44f};
+    bool m_showBBox = false;
     bool mouseButtonsDown[3] = { false, false, false };
     
-    // Model State
     glm::vec3 m_modelPos = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::quat m_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     float scale_factor = 1.0f;
     glm::vec3 m_userScale = glm::vec3(1.0f, 1.0f, 1.0f);
 
-    // Camera State
     glm::vec3 m_camPos   = glm::vec3(0.0f, 0.0f, 2.5f);
     glm::vec3 m_camFront = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 m_camUp    = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -94,11 +92,10 @@ protected:
     float m_yaw   = -90.0f;
     float m_pitch = 0.0f;
 
-    // Timing
     float m_deltaTime = 0.0f;
     float m_lastFrame = 0.0f;
 
-    float panelWidth = 200.0f;
+    float panelWidth = 300.0f;
     char saveFileName[256] = "modelo_exportado";
     char loadFileName[256] = "cube.obj";
     bool m_ownsModel = false;
@@ -107,6 +104,7 @@ protected:
     bool isRotating = false;
     double lastMouseX, lastMouseY;
     int selectedSubMeshIndex = -1;
+    bool m_isEditingColor = false;
 
     const char* vertexShaderSrc = R"glsl(
         #version 330 core
@@ -114,11 +112,12 @@ protected:
         layout(location = 1) in vec3 aColor;
         
         uniform mat4 u_mvp;
+        uniform vec3 u_elementOffset;
 
         out vec3 vColor;
         void main() 
         {
-            gl_Position = u_mvp * vec4(aPos, 1.0);
+            gl_Position = u_mvp * vec4(aPos + u_elementOffset, 1.0);
             vColor = aColor;
         }
     )glsl";
@@ -130,18 +129,19 @@ protected:
 
         uniform vec3 u_pickingColor; 
         uniform bool u_isPicking;    
-        uniform int u_selectedIndex; // Nuevo: ID que el usuario seleccionó
-        uniform int u_currentMeshID; // Nuevo: ID de la sub-malla actual
+        uniform int u_selectedIndex; 
+        uniform int u_currentMeshID; 
+        uniform vec3 u_elementColor;
+        uniform bool u_suppressHighlight;
 
         void main() {
             if (u_isPicking) {
                 FragColor = vec4(u_pickingColor, 1.0);
             } else {
-                // Si esta sub-malla es la seleccionada, la pintamos de un color resaltado (ej. Amarillo)
-                if (u_selectedIndex != -1 && u_currentMeshID == u_selectedIndex) {
-                    FragColor = vec4(1.0, 1.0, 0.0, 1.0); // Resaltado amarillo
+                if (u_selectedIndex != -1 && u_currentMeshID == u_selectedIndex && !u_suppressHighlight) {
+                    FragColor = vec4(1.0, 1.0, 0.0, 1.0); 
                 } else {
-                    FragColor = vec4(vColor, 1.0); // Color original (Kd del material)
+                    FragColor = vec4(u_elementColor, 1.0); 
                 }
             }
         }
