@@ -14,7 +14,9 @@ C3DViewer::~C3DViewer()
     ImGui::DestroyContext();
     
     if (m_vbo) glDeleteBuffers(1, &m_vbo);
+    if (m_normalVBO) glDeleteBuffers(1, &m_normalVBO);
     if (m_vao) glDeleteVertexArrays(1, &m_vao);
+    if (m_normalVAO) glDeleteVertexArrays(1, &m_normalVAO);
     if (m_shaderProgram) glDeleteProgram(m_shaderProgram);
     if (m_window) glfwDestroyWindow(m_window);
     glfwTerminate();
@@ -28,6 +30,7 @@ bool C3DViewer::setup()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_SAMPLES, 4);
     glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
     m_window = glfwCreateWindow(width, height, "C3DViewer Window: 3D Object Render Modifier", NULL, NULL);
@@ -68,8 +71,12 @@ bool C3DViewer::setup()
 
     setupTriangle();
 
-    glEnable(GL_DEPTH_TEST);
+    setupTriangle();
+
     glViewport(0, 0, width, height);
+    
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
 
     glfwSetWindowUserPointer(m_window, this);
     glfwSetKeyCallback(m_window, keyCallbackStatic);
@@ -84,6 +91,16 @@ void C3DViewer::update()
     float currentFrame = (float)glfwGetTime();
     m_deltaTime = currentFrame - m_lastFrame;
     m_lastFrame = currentFrame;
+
+    m_frameCounter++;
+    m_timeAccumulator += m_deltaTime;
+    if (m_timeAccumulator >= 5.0f) {
+        m_fps = (float)m_frameCounter / m_timeAccumulator;
+        m_frameCounter = 0;
+        m_timeAccumulator = 0.0f;
+    }
+
+    fill(m_buffer.begin(), m_buffer.end(), m_background_color);
 
     float cameraSpeed = 2.5f * m_deltaTime;
 
@@ -275,7 +292,77 @@ void C3DViewer::onCursorPos(double xpos, double ypos)
 void C3DViewer::render() {
     update();
     
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f); 
+    if (m_requestLoad) {
+        m_requestLoad = false;
+        const char* filterPatterns[] = { "*.obj" };
+        const char* openPath = tinyfd_openFileDialog(
+            "Cargar Modelo", "", 1, filterPatterns, "Archivos Wavefront OBJ", 0
+        );
+
+        if (openPath) {
+            C3DFigure* newModel = new C3DFigure();
+            if (newModel->loadObject(string(openPath))) {
+                if (m_ownsModel && m_currentModel) {
+                    delete m_currentModel;
+                }
+                setupModel(newModel);
+                m_ownsModel = true;
+                
+                m_modelPos = glm::vec3(0.0f);
+                m_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                m_userScale = glm::vec3(1.0f); 
+                m_currentModel->normalization(); 
+                setupModel(m_currentModel);
+                
+                selectedSubMeshIndex = -1;
+                m_showBBox = false;
+            } else {
+                std::cerr << "Error cargando: " << openPath << std::endl;
+                delete newModel;
+            }
+        }
+    }
+
+    if (m_requestSave && m_currentModel) {
+        m_requestSave = false;
+        const char* filterPatterns[] = { "*.obj" };
+        const char* savePath = tinyfd_saveFileDialog(
+            "Guardar Modelo", "modelo_exportado.obj", 1, filterPatterns, "Archivos Wavefront OBJ"
+        );
+
+        if (savePath) {
+            m_currentModel->saveObject(string(savePath), m_modelPos, m_rotation, m_userScale * scale_factor);
+        }
+    }
+    
+    if (m_enableDepthTest) glEnable(GL_DEPTH_TEST);
+    else glDisable(GL_DEPTH_TEST);
+
+    if (m_enableCullFace) {
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+    } else {
+        glDisable(GL_CULL_FACE);
+    }
+
+
+    if (m_enableLineSmooth) {
+        glEnable(GL_MULTISAMPLE);
+        glEnable(GL_LINE_SMOOTH);
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+        glDisable(GL_MULTISAMPLE);
+        glDisable(GL_LINE_SMOOTH);
+        glDisable(GL_BLEND);
+    }
+
+    glClearColor(m_background_color.r / 255.0f, 
+                 m_background_color.g / 255.0f, 
+                 m_background_color.b / 255.0f, 
+                 1.0f);
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
     glViewport((int)panelWidth, 0, width - (int)panelWidth, height);
 
@@ -303,15 +390,67 @@ void C3DViewer::render() {
         GLuint meshIdLoc = glGetUniformLocation(m_shaderProgram, "u_currentMeshID");
         GLuint offsetLoc = glGetUniformLocation(m_shaderProgram, "u_elementOffset");
         GLuint colorLoc  = glGetUniformLocation(m_shaderProgram, "u_elementColor");
-        glUniform1i(glGetUniformLocation(m_shaderProgram, "u_suppressHighlight"), m_isEditingColor);
+
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.0f, 1.0f);
 
         for (int i = 0; i < (int)meshes.size(); ++i) {
             glUniform1i(meshIdLoc, i);
             glUniform3fv(offsetLoc, 1, glm::value_ptr(meshes[i].offset));
             glUniform3fv(colorLoc, 1, glm::value_ptr(meshes[i].material.kd));
             
-            if (meshes[i].vertexCount > 0) {
+            if (meshes[i].showFaces && meshes[i].vertexCount > 0) {
                 glDrawArrays(GL_TRIANGLES, meshes[i].startVertex, meshes[i].vertexCount);
+            }
+        }
+        
+        glDisable(GL_POLYGON_OFFSET_FILL);
+
+        for (int i = 0; i < (int)meshes.size(); ++i) {
+            if (meshes[i].showWireframe && meshes[i].vertexCount > 0) {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                
+                glUniform1i(meshIdLoc, i);
+                glUniform3fv(offsetLoc, 1, glm::value_ptr(meshes[i].offset));
+                
+                vec3 wireColor = vec3(meshes[i].wireframeColor.r / 255.0f,
+                                      meshes[i].wireframeColor.g / 255.0f,
+                                      meshes[i].wireframeColor.b / 255.0f);
+                glUniform3fv(colorLoc, 1, glm::value_ptr(wireColor));
+                
+                glDrawArrays(GL_TRIANGLES, meshes[i].startVertex, meshes[i].vertexCount);
+                
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            }
+        }
+
+        glEnable(GL_PROGRAM_POINT_SIZE); 
+        
+        for (int i = 0; i < (int)meshes.size(); ++i) {
+            if (meshes[i].showVertices && meshes[i].vertexCount > 0) {
+                glPointSize(meshes[i].vertexSize);
+                
+                glUniform1i(meshIdLoc, i);
+                glUniform3fv(offsetLoc, 1, glm::value_ptr(meshes[i].offset));
+                
+                vec3 vColor = vec3(meshes[i].vertexColor.r / 255.0f,
+                                   meshes[i].vertexColor.g / 255.0f,
+                                   meshes[i].vertexColor.b / 255.0f);
+                glUniform3fv(colorLoc, 1, glm::value_ptr(vColor));
+                
+                glDrawArrays(GL_POINTS, meshes[i].startVertex, meshes[i].vertexCount);
+            }
+        }
+        glDisable(GL_PROGRAM_POINT_SIZE);
+    }
+
+    if (m_currentModel) {
+        const auto& meshes = m_currentModel->getSubMeshes();
+        glUseProgram(m_shaderProgram); 
+        
+        for (const auto& mesh : meshes) {
+            if (mesh.showNormals && mesh.vertexCount > 0) {
+                renderNormals(mesh);
             }
         }
     }
@@ -326,13 +465,14 @@ void C3DViewer::render() {
 
         glUniform1i(glGetUniformLocation(m_shaderProgram, "u_currentMeshID"), -1);
         glUniform3fv(offsetLoc, 1, glm::value_ptr(sm.offset));
-        glUniform3fv(colorLoc, 1, bbColor);
+        
+        vec3 bColor = vec3(bbColor.r / 255.0f, bbColor.g / 255.0f, bbColor.b / 255.0f);
+        glUniform3fv(colorLoc, 1, glm::value_ptr(bColor));
 
         glBindVertexArray(m_bboxVAO);
         
         glDisableVertexAttribArray(1); 
-        glVertexAttrib3fv(1, bbColor); 
-
+        
         glLineWidth(2.0f); 
         glDrawArrays(GL_LINES, 0, 24); 
         glLineWidth(1.0f);
@@ -368,6 +508,21 @@ void C3DViewer::drawInterface()
     ImGui::Begin("Control Panel", nullptr, window_flags);
     ImGui::Text("Menú Principal");
 
+    float background_color[4] = {
+        m_background_color.r / 255.0f,
+        m_background_color.g / 255.0f,
+        m_background_color.b / 255.0f,
+        m_background_color.a / 255.0f
+    };
+
+    if (ImGui::ColorEdit4("Fondo", background_color, ImGuiColorEditFlags_NoInputs))
+    {
+        m_background_color.r = (unsigned char)(background_color[0] * 255.0f);
+        m_background_color.g = (unsigned char)(background_color[1] * 255.0f);
+        m_background_color.b = (unsigned char)(background_color[2] * 255.0f);
+        m_background_color.a = (unsigned char)(background_color[3] * 255.0f);
+    }
+
     ImGui::Separator();
     ImGui::Text("Transformaciones");
     
@@ -388,9 +543,21 @@ void C3DViewer::drawInterface()
         m_pitch    = 0.0f;
         updateCameraVectors();
     }
-
-    ImGui::Text("Bounding Box:");
-    ImGui::ColorEdit3("Color", bbColor);
+    ImGui::Separator();
+    ImGui::Text("Visualizacion");
+    ImGui::Checkbox("Mostrar FPS (5s avg)", &m_showFPS);
+    if (m_showFPS) {
+        ImGui::Text("FPS: %.2f", m_fps);
+    }
+    
+    ImGui::Checkbox("Mostrar Bounding Box (B)", &m_showBBox);
+    
+    float bBoxColor[3] = { bbColor.r / 255.0f, bbColor.g / 255.0f, bbColor.b / 255.0f };
+    if (ImGui::ColorEdit3("Color BB", bBoxColor)) {
+        bbColor.r = (unsigned char)(bBoxColor[0] * 255.0f);
+        bbColor.g = (unsigned char)(bBoxColor[1] * 255.0f);
+        bbColor.b = (unsigned char)(bBoxColor[2] * 255.0f);
+    }
 
     if (selectedSubMeshIndex != -1 && m_currentModel) {
         ImGui::Separator();
@@ -401,16 +568,51 @@ void C3DViewer::drawInterface()
             SubMesh& mesh = meshes[selectedSubMeshIndex];
             ImGui::Text("ID: %d - %s", selectedSubMeshIndex, mesh.groupName.c_str());
             
-            ImGui::ColorEdit3("Color SM", glm::value_ptr(mesh.material.kd));
-            
-            if (ImGui::IsItemActive()) {
-                m_isEditingColor = true;
-            } else {
-                m_isEditingColor = false;
+            ImGui::Checkbox("Mostrar Relleno", &mesh.showFaces);
+
+            float kColor[3] = { mesh.material.kd[0], mesh.material.kd[1], mesh.material.kd[2] };
+            if (ImGui::ColorEdit3("Color SM", kColor)) {
+                 mesh.material.kd[0] = kColor[0];
+                 mesh.material.kd[1] = kColor[1];
+                 mesh.material.kd[2] = kColor[2];
             }
 
             ImGui::DragFloat3("Traslacion SM", glm::value_ptr(mesh.offset), 0.01f);
             
+            ImGui::Checkbox("Mostrar Vertices", &mesh.showVertices);
+            if (mesh.showVertices) {
+                float vColor[3] = { mesh.vertexColor.r / 255.0f, mesh.vertexColor.g / 255.0f, mesh.vertexColor.b / 255.0f };
+                if (ImGui::ColorEdit3("Color Vertices", vColor)) {
+                    mesh.vertexColor.r = (unsigned char)(vColor[0] * 255.0f);
+                    mesh.vertexColor.g = (unsigned char)(vColor[1] * 255.0f);
+                    mesh.vertexColor.b = (unsigned char)(vColor[2] * 255.0f);
+                }
+                ImGui::SliderFloat("Tamano Vertices", &mesh.vertexSize, 1.0f, 20.0f);
+            }
+            
+
+            
+            ImGui::Checkbox("Mostrar Alambrado", &mesh.showWireframe);
+            if (mesh.showWireframe) {
+                float wColor[3] = { mesh.wireframeColor.r / 255.0f, mesh.wireframeColor.g / 255.0f, mesh.wireframeColor.b / 255.0f };
+                if (ImGui::ColorEdit3("Color Alambrado", wColor)) {
+                    mesh.wireframeColor.r = (unsigned char)(wColor[0] * 255.0f);
+                    mesh.wireframeColor.g = (unsigned char)(wColor[1] * 255.0f);
+                    mesh.wireframeColor.b = (unsigned char)(wColor[2] * 255.0f);
+                }
+            }
+
+            ImGui::Checkbox("Mostrar Normales", &mesh.showNormals);
+            if (mesh.showNormals) {
+                 float nColor[3] = { mesh.normalColor.r / 255.0f, mesh.normalColor.g / 255.0f, mesh.normalColor.b / 255.0f };
+                 if (ImGui::ColorEdit3("Color Normales", nColor)) {
+                     mesh.normalColor.r = (unsigned char)(nColor[0] * 255.0f);
+                     mesh.normalColor.g = (unsigned char)(nColor[1] * 255.0f);
+                     mesh.normalColor.b = (unsigned char)(nColor[2] * 255.0f);
+                 }
+                 ImGui::SliderFloat("Longitud Normal (%)", &mesh.normalLengthPercent, 0.01f, 0.5f);
+            }
+
             if (ImGui::Button("Eliminar Sub-malla")) {
                 m_currentModel->deleteSubMesh(selectedSubMeshIndex);
                 setupModel(m_currentModel);
@@ -423,52 +625,19 @@ void C3DViewer::drawInterface()
     ImGui::Separator();
     ImGui::Text("Guardar Modelo OBJ/MTL");
     if (ImGui::Button("Guardar OBJ")) {
-        const char* filterPatterns[] = { "*.obj" };
-        const char* savePath = tinyfd_saveFileDialog(
-            "Guardar Modelo", 
-            "modelo_exportado.obj", 
-            1, 
-            filterPatterns, 
-            "Archivos Wavefront OBJ"
-        );
-
-        if (savePath) {
-            m_currentModel->saveObject(string(savePath), m_modelPos, m_rotation, m_userScale * scale_factor);
-        }
+        m_requestSave = true;
     }
+
+    ImGui::Separator();
+    ImGui::Text("Render States");
+    ImGui::Checkbox("Z-Buffer (Depth Test)", &m_enableDepthTest);
+    ImGui::Checkbox("Back-Face Culling", &m_enableCullFace);
+    ImGui::Checkbox("Antialiasing de Lineas", &m_enableLineSmooth);
 
     ImGui::Separator();
     ImGui::Text("Cargar Modelo OBJ");
     if (ImGui::Button("Cargar OBJ")) {
-        const char* filterPatterns[] = { "*.obj" };
-        const char* openPath = tinyfd_openFileDialog(
-            "Cargar Modelo", 
-            "", 
-            1, 
-            filterPatterns, 
-            "Archivos Wavefront OBJ", 
-            0
-        );
-
-        if (openPath) {
-            C3DFigure* newModel = new C3DFigure();
-            if (newModel->loadObject(string(openPath))) {
-                if (m_ownsModel && m_currentModel) {
-                    delete m_currentModel;
-                }
-                setupModel(newModel);
-                m_ownsModel = true;
-                
-                m_modelPos = glm::vec3(0.0f);
-                m_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-                m_userScale = glm::vec3(1.0f); 
-                m_currentModel->normalization(); 
-                setupModel(m_currentModel); 
-            } else {
-                std::cerr << "Error cargando: " << openPath << std::endl;
-                delete newModel;
-            }
-        }
+        m_requestLoad = true;
     }
     
     ImGui::End();
@@ -663,4 +832,71 @@ void C3DViewer::setupBoundingBox(BoundingBox box) {
     glBufferData(GL_ARRAY_BUFFER, sizeof(bboxVertices), bboxVertices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+}
+
+void C3DViewer::renderNormals(const SubMesh& mesh) {
+    if (!m_currentModel) return;
+
+    BoundingBox globalBBox = m_currentModel->getBoundingBox();
+    float dx = globalBBox.max.x - globalBBox.min.x;
+    float dy = globalBBox.max.y - globalBBox.min.y;
+    float dz = globalBBox.max.z - globalBBox.min.z;
+    float diagonal = sqrt(dx * dx + dy * dy + dz * dz);
+    float normalLength = diagonal * mesh.normalLengthPercent;
+
+    if (normalLength < 0.0001f) normalLength = 0.05f;
+
+    const vector<vec3>& vertices = m_currentModel->getVertices();
+    const vector<vec3>& normals = m_currentModel->getNormals();
+    
+    vector<float> lines;
+    
+    for (const auto& face : mesh.faces) {
+        for (int i = 0; i < 3; ++i) {
+            int vIdx = face.vertexIndices[i];
+            int nIdx = face.normalIndices[i];
+
+            if (vIdx < vertices.size() && nIdx < normals.size()) {
+                vec3 v = vertices[vIdx];
+                vec3 n = normals[nIdx];
+                
+                v += mesh.offset;
+
+                lines.push_back(v.x);
+                lines.push_back(v.y);
+                lines.push_back(v.z);
+
+                vec3 end = v + n * normalLength;
+                
+                lines.push_back(end.x);
+                lines.push_back(end.y);
+                lines.push_back(end.z);
+            }
+        }
+    }
+
+    if (m_normalVAO == 0) glGenVertexArrays(1, &m_normalVAO);
+    if (m_normalVBO == 0) glGenBuffers(1, &m_normalVBO);
+
+    glBindVertexArray(m_normalVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_normalVBO);
+    glBufferData(GL_ARRAY_BUFFER, lines.size() * sizeof(float), lines.data(), GL_DYNAMIC_DRAW);
+    
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    GLuint offsetLoc = glGetUniformLocation(m_shaderProgram, "u_elementOffset");
+    GLuint colorLoc  = glGetUniformLocation(m_shaderProgram, "u_elementColor");
+    GLuint meshIdLoc = glGetUniformLocation(m_shaderProgram, "u_currentMeshID"); 
+
+    glUniform3f(offsetLoc, 0.0f, 0.0f, 0.0f);
+    
+    glUniform1i(meshIdLoc, -1); 
+
+    vec3 nColor = vec3(mesh.normalColor.r / 255.0f, mesh.normalColor.g / 255.0f, mesh.normalColor.b / 255.0f);
+    glUniform3fv(colorLoc, 1, glm::value_ptr(nColor));
+
+    glDrawArrays(GL_LINES, 0, (GLsizei)lines.size() / 3);
+    
+    glBindVertexArray(0);
 }

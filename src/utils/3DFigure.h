@@ -13,6 +13,10 @@
 using namespace std;
 using namespace glm;
 
+struct RGBA {
+    unsigned char r, g, b, a;
+};
+
 struct Material{
     string name;
     float ns;
@@ -45,6 +49,19 @@ struct SubMesh{
     
     vec3 offset = vec3(0.0f); 
     BoundingBox bbox;
+
+    bool showVertices = false;
+    RGBA vertexColor = {255, 0, 0, 255};
+    float vertexSize = 5.0f;
+
+    bool showWireframe = false;
+    RGBA wireframeColor = {0, 0, 0, 255};
+
+    bool showFaces = true;
+
+    bool showNormals = false;
+    RGBA normalColor = {0, 0, 255, 255};
+    float normalLengthPercent = 0.05f;
 };
 
 class C3DFigure {
@@ -67,5 +84,7 @@ public:
     const vector<SubMesh>& getSubMeshes();
     vector<SubMesh>& getSubMeshesModifiable();
     void deleteSubMesh(int index);
+    const vector<vec3>& getVertices() const { return vertices; }
+    const vector<vec3>& getNormals() const { return normals; }
     void saveObject(string path, glm::vec3 pos, glm::quat rot, glm::vec3 scale);
 };

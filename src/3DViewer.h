@@ -15,7 +15,6 @@
 #include "../glm/gtc/quaternion.hpp"
 #include "../glm/gtx/quaternion.hpp"
 
-
 class C3DViewer 
 {
 
@@ -62,6 +61,7 @@ private:
     static void cursorPosCallbackStatic(GLFWwindow* window, double xpos, double ypos);
 
     void setupBoundingBox(BoundingBox box);
+    void renderNormals(const SubMesh& mesh);
 
     void performPicking(int x, int y); 
     void updateCameraVectors();
@@ -69,14 +69,29 @@ private:
 protected:
     int width = 720;
     int height = 480;
+    vector<RGBA> m_buffer;
+    RGBA m_background_color = { 84, 84, 84, 255};
     GLFWwindow* m_window = nullptr;
     GLuint m_vao = 0;
     GLuint m_vbo = 0;
     GLuint m_shaderProgram = 0;
     double lastTime = 0.0;
     GLuint m_bboxVAO = 0, m_bboxVBO = 0;
-    float bbColor[3] = {0.18f, 0.80f, 0.44f};
+    RGBA bbColor = {46, 204, 113, 255};
     bool m_showBBox = false;
+
+    bool m_enableDepthTest = true;
+    bool m_enableCullFace = false;
+    bool m_enableLineSmooth = false;
+    
+    bool m_showFPS = false;
+    float m_fps = 0.0f;
+    float m_timeAccumulator = 0.0f;
+    int m_frameCounter = 0;
+
+    GLuint m_normalVAO = 0;
+    GLuint m_normalVBO = 0;
+
     bool mouseButtonsDown[3] = { false, false, false };
     
     glm::vec3 m_modelPos = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -104,8 +119,10 @@ protected:
     bool isRotating = false;
     double lastMouseX, lastMouseY;
     int selectedSubMeshIndex = -1;
-    bool m_isEditingColor = false;
-
+    
+    bool m_requestLoad = false;
+    bool m_requestSave = false;
+    
     const char* vertexShaderSrc = R"glsl(
         #version 330 core
         layout(location = 0) in vec3 aPos;
@@ -138,11 +155,7 @@ protected:
             if (u_isPicking) {
                 FragColor = vec4(u_pickingColor, 1.0);
             } else {
-                if (u_selectedIndex != -1 && u_currentMeshID == u_selectedIndex && !u_suppressHighlight) {
-                    FragColor = vec4(1.0, 1.0, 0.0, 1.0); 
-                } else {
-                    FragColor = vec4(u_elementColor, 1.0); 
-                }
+                FragColor = vec4(u_elementColor, 1.0); 
             }
         }
     )glsl";
