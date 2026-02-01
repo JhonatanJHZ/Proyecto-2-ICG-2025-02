@@ -4,10 +4,17 @@
 #include <iostream>
 #include <string>
 
+#include <objbase.h>
+
 using namespace std;
 
 int main() 
 {
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    if (FAILED(hr)) {
+        std::cerr << "Warning: Failed to initialize COM library. File dialogs might fail." << std::endl;
+    }
+
     const char* filterPatterns[] = { "*.obj" };
     
     const char* selectedPath = tinyfd_openFileDialog(
@@ -41,5 +48,6 @@ int main()
 
     test.mainLoop();
 
+    CoUninitialize();
     return 0;
 }

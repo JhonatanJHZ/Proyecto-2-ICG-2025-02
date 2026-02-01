@@ -295,9 +295,14 @@ void C3DViewer::render() {
     if (m_requestLoad) {
         m_requestLoad = false;
         const char* filterPatterns[] = { "*.obj" };
-        const char* openPath = tinyfd_openFileDialog(
-            "Cargar Modelo", "", 1, filterPatterns, "Archivos Wavefront OBJ", 0
-        );
+        const char* openPath = nullptr;
+        try {
+            openPath = tinyfd_openFileDialog(
+                "Cargar Modelo", "", 1, filterPatterns, "Archivos Wavefront OBJ", 0
+            );
+        } catch (...) {
+            std::cerr << "Excepcion atrapada al abrir dialogo de archivo." << std::endl;
+        }
 
         if (openPath) {
             C3DFigure* newModel = new C3DFigure();
@@ -326,9 +331,18 @@ void C3DViewer::render() {
     if (m_requestSave && m_currentModel) {
         m_requestSave = false;
         const char* filterPatterns[] = { "*.obj" };
-        const char* savePath = tinyfd_saveFileDialog(
-            "Guardar Modelo", "modelo_exportado.obj", 1, filterPatterns, "Archivos Wavefront OBJ"
-        );
+        const char* savePath = nullptr;
+        try {
+            savePath = tinyfd_saveFileDialog(
+                "Guardar Modelo", "modelo_exportado.obj", 1, filterPatterns, "Archivos Wavefront OBJ"
+            );
+        } catch (...) {
+            std::cerr << "Excepcion WinRT detectada. Intentando guardar en backup_model.obj..." << std::endl;
+            if (m_currentModel) {
+                 m_currentModel->saveObject("backup_model.obj", m_modelPos, m_rotation, m_userScale * scale_factor);
+                 std::cerr << "Respaldo guardado exitosamente como 'backup_model.obj'" << std::endl;
+            }
+        }
 
         if (savePath) {
             m_currentModel->saveObject(string(savePath), m_modelPos, m_rotation, m_userScale * scale_factor);

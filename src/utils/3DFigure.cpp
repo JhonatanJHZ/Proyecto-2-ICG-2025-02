@@ -350,6 +350,15 @@ void C3DFigure::saveObject(string filename, vec3 globalPos, quat globalRot, vec3
         map<int, int> indexMap; 
 
         for (const auto& face : mesh.faces) {
+            bool validFace = true;
+            for (int k = 0; k < 3; ++k) {
+                if (face.vertexIndices[k] < 0 || face.vertexIndices[k] >= vertices.size()) {
+                    validFace = false;
+                    break;
+                }
+            }
+            if (!validFace) continue;
+
             for (int i = 0; i < 3; ++i) {
                 int oldIdx = face.vertexIndices[i];
                 
