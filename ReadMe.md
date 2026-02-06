@@ -87,11 +87,10 @@ Al presionar un submallado, esto activa diferentes funcionalidades en el panel d
 
 <img width="1365" height="718" alt="image" src="https://github.com/user-attachments/assets/4896bc18-89ea-453c-9cf2-ed1757c4c3cd" />
 <p align="center">
-  <i><b>Fig. 3.</b> Manipulación de un modelo 3D de un cerdo.</i>
+  <i><b>Fig. 2.</b> Manipulación de un modelo 3D de un cerdo.</i>
 </p>
 
 <img width="1365" height="719" alt="image" src="https://github.com/user-attachments/assets/06163ba0-6ed3-408e-b647-290e6117d4e0" />
 <p align="center">
-  <i><b>Fig. 2.</b> Manipulación de un modelo 3D de Super Mario Bros.</i>
+  <i><b>Fig. 3.</b> Manipulación de un modelo 3D de Super Mario Bros.</i>
 </p>
-
