@@ -1,6 +1,6 @@
 # Introducción a la Computación Gráfica.
 
-## Proyecto 1
+## Proyecto 2
 
 ### Jhonatan Homsany C.I. 30.182.893
 
@@ -9,9 +9,7 @@
 1. [Introducción](#introducción)
 2. [Guía de compilación](#guía-de-compilación)
 3. [Guía de uso](#guía-de-uso)
-4. [Buenas prácticas de desarrollo](#buenas-prácticas-llevadas-a-cabo-en-el-desarrollo)
-5. [Dificultades encontradas](#dificultades-encontradas)
-6. [Funcionamiento del programa](#funcionamiento-del-programa)
+4. [Funcionamiento del programa](#funcionamiento-del-programa)
 
 ---
 
@@ -87,14 +85,13 @@ Al presionar un submallado, esto activa diferentes funcionalidades en el panel d
 
 ## Funcionamiento del programa.
 
-<img width="1365" height="717" alt="image" src="https://github.com/user-attachments/assets/f5f840be-0b47-4fec-80ba-10dd37c86547" />
-
+<img width="1365" height="718" alt="image" src="https://github.com/user-attachments/assets/4896bc18-89ea-453c-9cf2-ed1757c4c3cd" />
 <p align="center">
-  <i><b>Fig. 2.</b> Despliegue de modelo 3D en el programa.</i>
+  <i><b>Fig. 3.</b> Manipulación de un modelo 3D de un cerdo.</i>
 </p>
 
-<img width="1364" height="695" alt="image" src="https://github.com/user-attachments/assets/28455ef8-c745-47c6-b786-721f3f160d15" />
-
+<img width="1365" height="719" alt="image" src="https://github.com/user-attachments/assets/06163ba0-6ed3-408e-b647-290e6117d4e0" />
 <p align="center">
-  <i><b>Fig. 3.</b> Dibujo de un robot realizado con las primitivas del proyecto.</i>
+  <i><b>Fig. 2.</b> Manipulación de un modelo 3D de Super Mario Bros.</i>
 </p>
+
